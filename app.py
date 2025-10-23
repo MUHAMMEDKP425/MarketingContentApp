@@ -84,6 +84,11 @@ def generate_content(prompt, max_length=100, num_variations=3, temperature=0.65,
     encoded = tokenizer(prompt, return_tensors="pt", truncation=True)
     input_ids = encoded.input_ids.to(device)
 
+    # Ensure max_length does not exceed GPT-2's limit
+    model_max_len = model.config.n_positions  # usually 1024
+    if max_length + input_ids.shape[1] > model_max_len:
+        max_length = model_max_len - input_ids.shape[1] - 1
+
     outputs = model.generate(
         input_ids,
         max_length=max_length,

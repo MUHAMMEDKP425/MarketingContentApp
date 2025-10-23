@@ -53,43 +53,30 @@ def safe_read_tabular(uploaded_file):
             "Failed to parse the uploaded file as CSV. Re-save as UTF-8 CSV or upload an xlsx."
         )
 
-
+# -----------------------------
+# Create prompt with strong product context (no long examples)
+# -----------------------------
 def create_full_prompt(product_name, tone="Friendly", keywords="", content_type="social post", audience="customers", features=""):
-    examples = """
-Example 1:
-Product: Wireless Headphones
-Tone: Friendly
-Features: noise cancellation, 30-hour battery, bluetooth
-Post: "🎧 Meet our new Wireless Headphones — crystal-clear sound, 30-hour battery life, and comfortable listening with noise cancellation. Grab yours today and enjoy a special launch discount!"
-
-Example 2:
-Product: Herbal Face Cream
-Tone: Professional
-Features: paraben-free, dermatologist tested, 24-hour hydration
-Post: "Discover our dermatologist-tested Herbal Face Cream — paraben-free and clinically proven to hydrate for 24 hours. Restore your skin's natural glow. Order now for a limited-time discount."
-"""
-
     base = f"Write a {tone} {content_type} to {audience} promoting a new {product_name}."
     if features:
         base += f" Key features: {features}."
     if keywords:
         base += f" Include keywords: {keywords}."
     base += " Keep it concise (1-2 short sentences), highlight benefits, and add a clear call-to-action."
-
-    full_prompt = examples + f"\nNow write the post:\n{base}\nPost:"
+    full_prompt = base + "\nPost:"
     return full_prompt
 
-
+# -----------------------------
+# Generate content
+# -----------------------------
 def generate_content(prompt, max_length=100, num_variations=3, temperature=0.65, top_k=40, top_p=0.9):
-    # Truncate prompt to fit GPT-2 max tokens
     encoded = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=model.config.n_positions - 1)
     input_ids = encoded.input_ids.to(device)
 
-    # Ensure max_length doesn't exceed model's limit
     model_max_len = model.config.n_positions  # usually 1024
     max_gen_length = min(max_length, model_max_len - input_ids.shape[1] - 1)
     if max_gen_length <= 0:
-        raise ValueError("Input prompt is too long for GPT-2. Reduce features, keywords, or examples.")
+        raise ValueError("Input prompt is too long for GPT-2. Reduce features or keywords.")
 
     outputs = model.generate(
         input_ids,
@@ -121,9 +108,8 @@ def generate_content(prompt, max_length=100, num_variations=3, temperature=0.65,
 # -----------------------------
 st.set_page_config(page_title="Marketing Content Generator", layout="wide")
 st.title("Professional Marketing Content Generator")
-st.caption("Generate marketing posts, descriptions, and ad copies with selectable tone, keywords, and batch export.")
+st.caption("Generate marketing posts, descriptions, and ad copies with relevant content for your products.")
 
-# Sidebar settings
 with st.sidebar:
     st.header("Generation Settings")
     max_length = st.slider("Max length (tokens)", 60, 300, 120)

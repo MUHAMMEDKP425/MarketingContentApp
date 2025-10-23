@@ -152,47 +152,45 @@ with tab2:
                 "Common fixes: re-save as UTF-8 CSV from Excel, or upload an xlsx. "
                 f"Underlying error: {e}"
             )
-
-    if uploaded_file is not None:
-        try:
-            df_products = safe_read_tabular(uploaded_file)
-        except Exception as e:
-            st.error(f"Error reading file: {e}")
+if uploaded_file is not None:
+    try:
+        df_products = safe_read_tabular(uploaded_file)
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
+    else:
+        if "Product" not in df_products.columns:
+            st.error("CSV must contain a 'Product' column.")
         else:
-            if "Product" not in df_products.columns:
-                st.error("CSV must contain a 'Product' column.")
-            else:
-                batch_keywords = st.text_input("Keywords (applied to all)", value="")
-                batch_tone = st.selectbox("Tone for batch", ["Friendly", "Professional", "Humorous", "Persuasive"], index=0)
-                batch_content_type = st.selectbox("Content type for batch", ["social post", "ad copy", "product description", "email subject"], index=0)
-                batch_run = st.button("Generate batch content")
-              if batch_run:
-    generated = []
-    with st.spinner("Generating batch content..."):
-        for _, row in df_products.iterrows():
-            p = str(row["Product"]).strip()
-            if not p:
-                continue
-            prompt = create_full_prompt(p, batch_tone, batch_keywords, batch_content_type)
-            variations = generate_content(
-                prompt,
-                max_length=max_length,
-                num_variations=num_variations,
-                temperature=temperature,
-                top_k=top_k,
-                top_p=top_p
-            )
-            for i, v in enumerate(variations, 1):
-                generated.append({
-                    "Product": p,
-                    "Tone": batch_tone,
-                    "Variation": i,
-                    "Content": v
-                })
-    if generated:
-        df_generated = pd.DataFrame(generated)
-        st.success("Batch content generated!")
-        st.dataframe(df_generated)
-        csv = df_generated.to_csv(index=False)
-        st.download_button("Download batch results as CSV", csv, file_name="batch_marketing.csv", mime="text/csv")
-
+            batch_keywords = st.text_input("Keywords (applied to all)", value="")
+            batch_tone = st.selectbox("Tone for batch", ["Friendly", "Professional", "Humorous", "Persuasive"], index=0)
+            batch_content_type = st.selectbox("Content type for batch", ["social post", "ad copy", "product description", "email subject"], index=0)
+            batch_run = st.button("Generate batch content")
+            if batch_run:
+                generated = []
+                with st.spinner("Generating batch content..."):
+                    for _, row in df_products.iterrows():
+                        p = str(row["Product"]).strip()
+                        if not p:
+                            continue
+                        prompt = create_full_prompt(p, batch_tone, batch_keywords, batch_content_type)
+                        variations = generate_content(
+                            prompt,
+                            max_length=max_length,
+                            num_variations=num_variations,
+                            temperature=temperature,
+                            top_k=top_k,
+                            top_p=top_p
+                        )
+                        for i, v in enumerate(variations, 1):
+                            generated.append({
+                                "Product": p,
+                                "Tone": batch_tone,
+                                "Variation": i,
+                                "Content": v
+                            })
+                if generated:
+                    df_generated = pd.DataFrame(generated)
+                    st.success("Batch content generated!")
+                    st.dataframe(df_generated)
+                    csv = df_generated.to_csv(index=False)
+                    st.download_button("Download batch results as CSV", csv, file_name="batch_marketing.csv", mime="text/csv")

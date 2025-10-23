@@ -81,17 +81,19 @@ Post: "Discover our dermatologist-tested Herbal Face Cream — paraben-free and 
 
 
 def generate_content(prompt, max_length=100, num_variations=3, temperature=0.65, top_k=40, top_p=0.9):
-    encoded = tokenizer(prompt, return_tensors="pt", truncation=True)
+    # Truncate prompt to fit GPT-2 max tokens
+    encoded = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=model.config.n_positions - 1)
     input_ids = encoded.input_ids.to(device)
 
-    # Ensure max_length does not exceed GPT-2's limit
+    # Ensure max_length doesn't exceed model's limit
     model_max_len = model.config.n_positions  # usually 1024
-    if max_length + input_ids.shape[1] > model_max_len:
-        max_length = model_max_len - input_ids.shape[1] - 1
+    max_gen_length = min(max_length, model_max_len - input_ids.shape[1] - 1)
+    if max_gen_length <= 0:
+        raise ValueError("Input prompt is too long for GPT-2. Reduce features, keywords, or examples.")
 
     outputs = model.generate(
         input_ids,
-        max_length=max_length,
+        max_length=input_ids.shape[1] + max_gen_length,
         num_return_sequences=num_variations,
         do_sample=True,
         temperature=temperature,
@@ -147,10 +149,13 @@ with tab1:
             if not features.strip():
                 features = "quality build, energy efficient, reliable performance"
             prompt = create_full_prompt(product_name, tone, keywords, content_type, audience, features)
-            results = generate_content(prompt, max_length=max_length, num_variations=num_variations, temperature=temperature, top_k=top_k, top_p=top_p)
-            df = pd.DataFrame([{"Product": product_name, "Tone": tone, "Variation": i+1, "Content": r} for i, r in enumerate(results)])
-            st.dataframe(df)
-            st.download_button("Download CSV", df.to_csv(index=False), file_name=f"{product_name.replace(' ','_')}_marketing.csv", mime="text/csv")
+            try:
+                results = generate_content(prompt, max_length=max_length, num_variations=num_variations, temperature=temperature, top_k=top_k, top_p=top_p)
+                df = pd.DataFrame([{"Product": product_name, "Tone": tone, "Variation": i+1, "Content": r} for i, r in enumerate(results)])
+                st.dataframe(df)
+                st.download_button("Download CSV", df.to_csv(index=False), file_name=f"{product_name.replace(' ','_')}_marketing.csv", mime="text/csv")
+            except ValueError as ve:
+                st.error(str(ve))
         else:
             st.error("Please enter a product name.")
 
@@ -181,9 +186,12 @@ with tab2:
                         audience_val = str(row[col_map.get('audience','')] or "customers")
                         keywords_val = str(row[col_map.get('keywords','')] or "")
                         prompt = create_full_prompt(p, tone_val, keywords_val, content_type_val, audience_val, features_val)
-                        variations = generate_content(prompt, max_length=max_length, num_variations=num_variations, temperature=temperature, top_k=top_k, top_p=top_p)
-                        for i, v in enumerate(variations,1):
-                            generated.append({"Product": p, "Tone": tone_val, "Variation": i, "Content": v})
+                        try:
+                            variations = generate_content(prompt, max_length=max_length, num_variations=num_variations, temperature=temperature, top_k=top_k, top_p=top_p)
+                            for i, v in enumerate(variations,1):
+                                generated.append({"Product": p, "Tone": tone_val, "Variation": i, "Content": v})
+                        except ValueError as ve:
+                            st.warning(f"Skipping '{p}': {ve}")
                     df_out = pd.DataFrame(generated)
                     st.dataframe(df_out)
                     st.download_button("Download batch CSV", df_out.to_csv(index=False), file_name="batch_marketing_content.csv", mime="text/csv")
